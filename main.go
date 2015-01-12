@@ -41,6 +41,7 @@ func reconnect(addr string, out chan []byte) {
 		if err := poll(addr, out); err != nil {
 			log.Println(err)
 		}
+		time.Sleep(time.Second)
 	}
 }
 
