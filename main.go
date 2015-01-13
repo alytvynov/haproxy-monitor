@@ -224,7 +224,7 @@ func (s server) redraw(v view, stats []byte) {
 func buildLine(rec []string, pos []int) string {
 	l := ""
 	for i, j := range pos {
-		l += fmt.Sprintf(fmt.Sprintf("%%%ds|", fieldLen[i]), rec[j])
+		l += fmt.Sprintf("%*s |", fieldLen[i], rec[j])
 	}
 	return l
 }
@@ -232,7 +232,7 @@ func buildLine(rec []string, pos []int) string {
 func (s server) drawStatTitles(v view) {
 	l := ""
 	for i, n := range fieldNames {
-		l += fmt.Sprintf(fmt.Sprintf("%%%ds|", fieldLen[i]), n)
+		l += fmt.Sprintf("%*s |", fieldLen[i], n)
 	}
 	v.label(1, l, termbox.ColorCyan)
 }
