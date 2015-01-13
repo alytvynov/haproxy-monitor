@@ -20,7 +20,7 @@ const fieldCount = 63
 
 var (
 	fieldPos   = []int{0, 1, 4, 8, 9, 17}
-	fieldLen   = []int{23, 45, 6, 10, 10, 7}
+	fieldLen   = []int{23, 35, 6, 10, 10, 7}
 	fieldNames = []string{"group", "name", "scur", "bin", "bout", "status"}
 )
 
@@ -224,7 +224,7 @@ func (s server) redraw(v view, stats []byte) {
 func buildLine(rec []string, pos []int) string {
 	l := ""
 	for i, j := range pos {
-		l += fmt.Sprintf("%*s |", fieldLen[i], rec[j])
+		l += fmt.Sprintf("%*.*s |", fieldLen[i], fieldLen[i], rec[j])
 	}
 	return l
 }
@@ -232,7 +232,7 @@ func buildLine(rec []string, pos []int) string {
 func (s server) drawStatTitles(v view) {
 	l := ""
 	for i, n := range fieldNames {
-		l += fmt.Sprintf("%*s |", fieldLen[i], n)
+		l += fmt.Sprintf("%*.*s|", fieldLen[i], fieldLen[i], n)
 	}
 	v.label(1, l, termbox.ColorCyan)
 }
