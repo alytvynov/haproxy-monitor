@@ -20,7 +20,7 @@ const fieldCount = 63
 
 var (
 	fieldPos   = []int{0, 1, 4, 8, 9, 17}
-	fieldLen   = []int{17, 45, 6, 10, 10, 7}
+	fieldLen   = []int{23, 45, 6, 10, 10, 7}
 	fieldNames = []string{"group", "name", "scur", "bin", "bout", "status"}
 )
 
