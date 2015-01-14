@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nsf/termbox-go"
@@ -81,6 +82,7 @@ func draw(in chan view) {
 type view struct {
 	buf  tulib.Buffer
 	rect tulib.Rect
+
 	draw chan view
 	done chan struct{}
 }
@@ -135,29 +137,34 @@ func (v view) clearCenter() {
 type server struct {
 	name string
 	addr string
-	v    view
+
+	v          view
+	numr, selr int
+	curRec     []byte
+	mu         sync.Mutex
 }
 
-func parseConf(path string) ([]server, error) {
+func parseConf(path string) ([]*server, error) {
 	f, err := os.Open("servers.conf")
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	servers := make([]server, 0)
+	servers := make([]*server, 0)
 	s := bufio.NewScanner(f)
 	for s.Scan() {
 		l := strings.Split(s.Text(), " ")
 		if len(l) != 2 {
 			return servers, fmt.Errorf("bad config entry %v", l)
 		}
-		servers = append(servers, server{name: l[0], addr: l[1]})
+		servers = append(servers, &server{name: l[0], addr: l[1]})
 	}
 	return servers, s.Err()
 }
 
-func (s server) monitor() {
+func (s *server) monitor() {
+	s.selr = -1
 	s.v.title(fmt.Sprintf("%s (%s)", s.name, s.addr))
 	s.v.buf.Fill(tulib.Rect{Width: s.v.buf.Width, Height: 1, Y: s.v.buf.Height - 1}, termbox.Cell{Bg: termbox.ColorDefault, Fg: termbox.ColorBlue, Ch: '-'})
 
@@ -167,7 +174,7 @@ func (s server) monitor() {
 	}
 }
 
-func (s server) connectAndDraw() {
+func (s *server) connectAndDraw() {
 	s.v.clearCenter()
 	s.v.centerLabel("connecting")
 	s.v.flush()
@@ -189,7 +196,8 @@ func (s server) connectAndDraw() {
 	for scan.Scan() {
 		l := scan.Bytes()
 		if len(l) == 0 {
-			s.redraw(buf)
+			s.curRec = buf
+			s.redraw()
 			buf = buf[:0]
 			continue
 		}
@@ -197,10 +205,15 @@ func (s server) connectAndDraw() {
 	}
 }
 
-func (s server) redraw(stats []byte) {
-	offs := 1 // offset from the top of buffer
+func (s *server) redraw() {
+	log.Println(s.name, "redraw")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.drawStatTitles()
-	r := csv.NewReader(bytes.NewReader(stats))
+
+	offs := 1 // offset from the top of buffer
+	r := csv.NewReader(bytes.NewReader(s.curRec))
 	for {
 		rec, err := r.Read()
 		if err == io.EOF {
@@ -218,24 +231,42 @@ func (s server) redraw(stats []byte) {
 			s.v.label(offs, err.Error(), termbox.ColorRed)
 			continue
 		}
-		log.Println(rec, fieldPos)
-		s.v.label(offs, buildLine(rec, fieldPos), termbox.ColorWhite)
+		s.appendLine(offs, rec)
 	}
+	s.numr = offs - 1
 	s.v.flush()
 }
 
-func buildLine(rec []string, pos []int) string {
+func (s *server) appendLine(offs int, rec []string) {
 	l := ""
-	for i, j := range pos {
+	for i, j := range fieldPos {
 		l += fmt.Sprintf("%*.*s |", fieldLen[i], fieldLen[i], rec[j])
 	}
-	return l
+	if s.selr == offs-2 {
+		s.v.label(offs, l, termbox.ColorYellow)
+	} else {
+		s.v.label(offs, l, termbox.ColorWhite)
+	}
 }
 
-func (s server) drawStatTitles() {
+func (s *server) drawStatTitles() {
 	l := ""
 	for i, n := range fieldNames {
 		l += fmt.Sprintf("%*.*s|", fieldLen[i], fieldLen[i], n)
 	}
 	s.v.label(1, l, termbox.ColorCyan)
+}
+
+func (s *server) moveCursor(diff int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.selr += diff
+	if s.selr >= s.numr {
+		s.selr = -1
+		go s.redraw()
+		return false
+	}
+	go s.redraw()
+	return true
 }
