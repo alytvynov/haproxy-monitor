@@ -176,6 +176,11 @@ func (s *server) redraw() {
 			s.v.label(offs, err.Error(), termbox.ColorRed)
 			continue
 		}
+		// skip those extra records that are not actual servers
+		if rec[1] == "BACKEND" || rec[1] == "FRONTEND" {
+			continue
+		}
+
 		s.recs = append(s.recs, rec)
 		s.appendLine(offs, rec)
 	}
