@@ -54,6 +54,8 @@ func main() {
 		go s.monitor()
 	}
 
+	sels := 0
+
 	for {
 		e := termbox.PollEvent()
 		switch e.Type {
@@ -62,7 +64,24 @@ func main() {
 			fmt.Println(e.Err)
 			return
 		case termbox.EventKey:
-			if e.Ch == 'q' {
+			switch e.Key {
+			case termbox.KeyArrowUp:
+				for !servers[sels].moveCursor(-1) {
+					if sels == 0 {
+						break
+					}
+					sels--
+				}
+			case termbox.KeyArrowDown:
+				for !servers[sels].moveCursor(1) {
+					if sels == len(servers)-1 {
+						break
+					}
+					sels++
+				}
+			}
+			switch e.Ch {
+			case 'q':
 				termbox.Close()
 				return
 			}
@@ -206,7 +225,6 @@ func (s *server) connectAndDraw() {
 }
 
 func (s *server) redraw() {
-	log.Println(s.name, "redraw")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -257,16 +275,20 @@ func (s *server) drawStatTitles() {
 	s.v.label(1, l, termbox.ColorCyan)
 }
 
-func (s *server) moveCursor(diff int) bool {
+func (s *server) moveCursor(diff int) (res bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.selr += diff
-	if s.selr >= s.numr {
+	switch {
+	case s.selr >= s.numr:
+		s.selr = s.numr
+	case s.selr < 0:
 		s.selr = -1
-		go s.redraw()
-		return false
+	default:
+		res = true
 	}
+	log.Println(s.name, "move", diff, s.selr, res)
 	go s.redraw()
-	return true
+	return res
 }
