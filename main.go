@@ -26,7 +26,6 @@ func main() {
 		termbox.Close()
 		log.Fatal(err)
 	}
-	log.Println(servers)
 
 	pollEvents(servers)
 }

@@ -131,7 +131,16 @@ func (s *server) connectAndDraw() {
 		l := scan.Bytes()
 		// if it's an empty line we have a full batch of stats, trigger redraw
 		if len(l) == 0 {
-			s.stat = buf
+			//copy buf to avoid races
+			cp := make([]byte, len(buf))
+			copy(cp, buf)
+
+			// lock here in case we have concurrent redraw happening that
+			// reads s.stat
+			s.mu.Lock()
+			s.stat = cp
+			s.mu.Unlock()
+
 			s.redraw()
 			buf = buf[:0]
 			continue
@@ -205,7 +214,7 @@ func (s *server) moveCursor(diff int) (res bool) {
 	switch {
 	case s.selr >= len(s.recs):
 		// if we went below the list, keep the cursor one position below last element
-		s.selr = len(s.recs) - 1
+		s.selr = len(s.recs)
 	case s.selr < 0:
 		// if we went above the list, keep the cursor one position above first element
 		s.selr = -1
