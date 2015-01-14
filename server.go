@@ -37,14 +37,17 @@ var (
 type server struct {
 	name string
 	addr string
+	con  net.Conn
 
-	// guards numr, selr and v
+	// guards recs, selr and v
 	mu sync.Mutex
 	v  view
 	// number of fields and currently selected field
-	numr, selr int
+	selr int
 	// current stat state, unparsed cvs values
-	curRec []byte
+	stat []byte
+	// current records
+	recs [][]string
 }
 
 func setupServers() ([]*server, error) {
@@ -109,25 +112,26 @@ func (s *server) connectAndDraw() {
 	s.v.centerLabel("connecting")
 	s.v.flush()
 	time.Sleep(100 * time.Millisecond)
-	con, err := net.Dial("tcp", s.addr)
+	var err error
+	s.con, err = net.Dial("tcp", s.addr)
 	if err != nil {
 		s.v.clearCenter()
 		s.v.centerError("error: " + err.Error())
 		s.v.flush()
 		return
 	}
-	defer con.Close()
+	defer s.con.Close()
 
 	s.v.clearCenter()
 	s.v.flush()
 
-	scan := bufio.NewScanner(con)
+	scan := bufio.NewScanner(s.con)
 	buf := make([]byte, 0)
 	for scan.Scan() {
 		l := scan.Bytes()
 		// if it's an empty line we have a full batch of stats, trigger redraw
 		if len(l) == 0 {
-			s.curRec = buf
+			s.stat = buf
 			s.redraw()
 			buf = buf[:0]
 			continue
@@ -143,8 +147,9 @@ func (s *server) redraw() {
 
 	s.drawStatTitles()
 
+	s.recs = s.recs[:0]
 	offs := 1 // offset from the top of buffer
-	r := csv.NewReader(bytes.NewReader(s.curRec))
+	r := csv.NewReader(bytes.NewReader(s.stat))
 	for {
 		rec, err := r.Read()
 		if err == io.EOF {
@@ -162,9 +167,9 @@ func (s *server) redraw() {
 			s.v.label(offs, err.Error(), termbox.ColorRed)
 			continue
 		}
+		s.recs = append(s.recs, rec)
 		s.appendLine(offs, rec)
 	}
-	s.numr = offs - 1 // since offs starts at 2
 	s.v.flush()
 }
 
@@ -172,11 +177,11 @@ func (s *server) appendLine(offs int, rec []string) {
 	l := ""
 	for i, j := range fieldPos {
 		// *.* uses arguments for size limiting
-		l += fmt.Sprintf("%*.*s |", fieldLen[i], fieldLen[i], rec[j])
+		l += fmt.Sprintf("%*.*s | ", fieldLen[i], fieldLen[i], rec[j])
 	}
 	// since offs starts at 2
 	if s.selr == offs-2 {
-		s.v.label(offs, l, termbox.ColorYellow) // selected line
+		s.v.labelbg(offs, l, termbox.ColorWhite, termbox.ColorBlack) // selected line
 	} else {
 		s.v.label(offs, l, termbox.ColorWhite) //regular line
 	}
@@ -185,7 +190,7 @@ func (s *server) appendLine(offs int, rec []string) {
 func (s *server) drawStatTitles() {
 	l := ""
 	for i, n := range fieldNames {
-		l += fmt.Sprintf("%*.*s|", fieldLen[i], fieldLen[i], n)
+		l += fmt.Sprintf("%*.*s | ", fieldLen[i], fieldLen[i], n)
 	}
 	s.v.label(1, l, termbox.ColorCyan)
 }
@@ -198,9 +203,9 @@ func (s *server) moveCursor(diff int) (res bool) {
 
 	s.selr += diff
 	switch {
-	case s.selr >= s.numr:
+	case s.selr >= len(s.recs):
 		// if we went below the list, keep the cursor one position below last element
-		s.selr = s.numr
+		s.selr = len(s.recs) - 1
 	case s.selr < 0:
 		// if we went above the list, keep the cursor one position above first element
 		s.selr = -1
@@ -211,4 +216,20 @@ func (s *server) moveCursor(diff int) (res bool) {
 	// trigger redraw. Necessary to in a goroutine because of locking
 	go s.redraw()
 	return res
+}
+
+func (s *server) toggleSelected() {
+	s.mu.Lock()
+	s.mu.Unlock()
+
+	if s.selr < 0 || s.selr > len(s.recs)-1 {
+		return
+	}
+	action := "disable"
+	if s.recs[s.selr][17] != "UP" {
+		action = "enable"
+	}
+	if _, err := fmt.Fprintf(s.con, "%s server %s/%s\n", action, s.recs[s.selr][0], s.recs[s.selr][1]); err != nil {
+		log.Println(err)
+	}
 }
