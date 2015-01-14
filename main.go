@@ -65,6 +65,8 @@ func pollEvents(servers []*server) {
 			case 'q': // q means quit
 				termbox.Close()
 				return
+			case 'm':
+				servers[sels].toggleSelected()
 			}
 		}
 	}
