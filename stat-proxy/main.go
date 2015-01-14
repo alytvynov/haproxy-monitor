@@ -15,7 +15,8 @@ func main() {
 	flag.Parse()
 
 	datach := make(chan []byte)
-	go reconnect(flag.Arg(0), datach)
+	cmdch := make(chan []byte)
+	go reconnect(flag.Arg(0), cmdch, datach)
 	subch := make(chan subscriber)
 	go pubsub(datach, subch)
 
@@ -31,21 +32,21 @@ func main() {
 			continue
 		}
 
-		go serve(con, subch)
+		go serve(con, subch, cmdch)
 	}
 }
 
-func reconnect(addr string, out chan []byte) {
+func reconnect(addr string, in, out chan []byte) {
 	for {
 		log.Println("connecting to", addr)
-		if err := poll(addr, out); err != nil {
+		if err := poll(addr, in, out); err != nil {
 			log.Println(err)
 		}
 		time.Sleep(time.Second)
 	}
 }
 
-func poll(addr string, out chan []byte) error {
+func poll(addr string, in, out chan []byte) error {
 	uaddr, err := net.ResolveUnixAddr("unix", addr)
 	if err != nil {
 		return err
@@ -68,6 +69,15 @@ func poll(addr string, out chan []byte) error {
 
 	s := bufio.NewScanner(con)
 	for {
+		select {
+		case cmd := <-in:
+			_, err = con.Write(append(cmd, '\n'))
+			if err != nil {
+				return err
+			}
+			continue
+		default:
+		}
 		_, err = con.Write([]byte("show stat\n"))
 		if err != nil {
 			return err
@@ -97,7 +107,7 @@ func poll(addr string, out chan []byte) error {
 	}
 }
 
-func serve(con net.Conn, sub chan subscriber) {
+func serve(con net.Conn, sub chan subscriber, cmd chan []byte) {
 	defer con.Close()
 
 	log.Println("new subscriber", con.RemoteAddr())
@@ -107,6 +117,17 @@ func serve(con net.Conn, sub chan subscriber) {
 	sub <- subscriber{id: con.RemoteAddr().String(), ch: in}
 	defer func() {
 		sub <- subscriber{id: con.RemoteAddr().String(), unsub: true}
+	}()
+
+	go func() {
+		s := bufio.NewScanner(con)
+		for s.Scan() {
+			log.Println("command:", s.Text())
+			cmd <- s.Bytes()
+		}
+		if s.Err() != nil {
+			log.Println(s.Err())
+		}
 	}()
 	for stat := range in {
 		_, err := con.Write(stat)
