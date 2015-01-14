@@ -43,6 +43,14 @@ func (v view) label(off int, text string, col termbox.Attribute) {
 		[]byte(text))
 }
 
+// label draws text with foreground color col on line off
+func (v view) labelbg(off int, text string, bg, fg termbox.Attribute) {
+	v.buf.DrawLabel(
+		tulib.Rect{Y: off, Width: v.buf.Width, Height: 1},
+		&tulib.LabelParams{Fg: fg, Bg: bg},
+		[]byte(text))
+}
+
 // clear empties contents of everything except first line
 func (v view) clear() {
 	v.buf.Fill(tulib.Rect{Y: 1, Width: v.buf.Width, Height: v.buf.Height - 2},
