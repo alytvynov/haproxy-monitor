@@ -49,7 +49,8 @@ func main() {
 	for i, s := range servers {
 		buf := tulib.NewBuffer(w, bh)
 		bufr := tulib.Rect{X: 0, Y: bh * i, Width: w, Height: bh}
-		go s.monitor(view{buf, bufr, drawch, make(chan struct{})})
+		s.v = view{buf, bufr, drawch, make(chan struct{})}
+		go s.monitor()
 	}
 
 	for {
@@ -134,6 +135,7 @@ func (v view) clearCenter() {
 type server struct {
 	name string
 	addr string
+	v    view
 }
 
 func parseConf(path string) ([]server, error) {
@@ -155,38 +157,39 @@ func parseConf(path string) ([]server, error) {
 	return servers, s.Err()
 }
 
-func (s server) monitor(v view) {
-	v.title(fmt.Sprintf("%s (%s)", s.name, s.addr))
-	v.buf.Fill(tulib.Rect{Width: v.buf.Width, Height: 1, Y: v.buf.Height - 1}, termbox.Cell{Bg: termbox.ColorDefault, Fg: termbox.ColorBlue, Ch: '-'})
+func (s server) monitor() {
+	s.v.title(fmt.Sprintf("%s (%s)", s.name, s.addr))
+	s.v.buf.Fill(tulib.Rect{Width: s.v.buf.Width, Height: 1, Y: s.v.buf.Height - 1}, termbox.Cell{Bg: termbox.ColorDefault, Fg: termbox.ColorBlue, Ch: '-'})
 
 	for {
-		s.connectAndDraw(v)
+		s.connectAndDraw()
 		time.Sleep(time.Second)
 	}
 }
 
-func (s server) connectAndDraw(v view) {
-	v.centerLabel("connecting")
-	v.flush()
+func (s server) connectAndDraw() {
+	s.v.clearCenter()
+	s.v.centerLabel("connecting")
+	s.v.flush()
 	time.Sleep(100 * time.Millisecond)
 	con, err := net.Dial("tcp", s.addr)
 	if err != nil {
-		v.clearCenter()
-		v.centerError("error: " + err.Error())
-		v.flush()
+		s.v.clearCenter()
+		s.v.centerError("error: " + err.Error())
+		s.v.flush()
 		return
 	}
 	defer con.Close()
 
-	v.clearCenter()
-	v.flush()
+	s.v.clearCenter()
+	s.v.flush()
 
 	scan := bufio.NewScanner(con)
 	buf := make([]byte, 0)
 	for scan.Scan() {
 		l := scan.Bytes()
 		if len(l) == 0 {
-			s.redraw(v, buf)
+			s.redraw(buf)
 			buf = buf[:0]
 			continue
 		}
@@ -194,9 +197,9 @@ func (s server) connectAndDraw(v view) {
 	}
 }
 
-func (s server) redraw(v view, stats []byte) {
+func (s server) redraw(stats []byte) {
 	offs := 1 // offset from the top of buffer
-	s.drawStatTitles(v)
+	s.drawStatTitles()
 	r := csv.NewReader(bytes.NewReader(stats))
 	for {
 		rec, err := r.Read()
@@ -206,19 +209,19 @@ func (s server) redraw(v view, stats []byte) {
 		offs++
 		if err != nil {
 			log.Println(err)
-			v.label(offs, err.Error(), termbox.ColorRed)
+			s.v.label(offs, err.Error(), termbox.ColorRed)
 			continue
 		}
 		if len(rec) != fieldCount {
 			err := fmt.Errorf("expected %d fields, got %d", fieldCount, len(rec))
 			log.Println(err)
-			v.label(offs, err.Error(), termbox.ColorRed)
+			s.v.label(offs, err.Error(), termbox.ColorRed)
 			continue
 		}
 		log.Println(rec, fieldPos)
-		v.label(offs, buildLine(rec, fieldPos), termbox.ColorWhite)
+		s.v.label(offs, buildLine(rec, fieldPos), termbox.ColorWhite)
 	}
-	v.flush()
+	s.v.flush()
 }
 
 func buildLine(rec []string, pos []int) string {
@@ -229,10 +232,10 @@ func buildLine(rec []string, pos []int) string {
 	return l
 }
 
-func (s server) drawStatTitles(v view) {
+func (s server) drawStatTitles() {
 	l := ""
 	for i, n := range fieldNames {
 		l += fmt.Sprintf("%*.*s|", fieldLen[i], fieldLen[i], n)
 	}
-	v.label(1, l, termbox.ColorCyan)
+	s.v.label(1, l, termbox.ColorCyan)
 }
