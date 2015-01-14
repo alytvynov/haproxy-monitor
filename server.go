@@ -178,6 +178,8 @@ func (s *server) redraw() {
 		}
 		// skip those extra records that are not actual servers
 		if rec[1] == "BACKEND" || rec[1] == "FRONTEND" {
+			// adjust offset back since we skip this line
+			offs--
 			continue
 		}
 
