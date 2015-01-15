@@ -38,7 +38,7 @@ func (v view) flush() {
 // label draws text with foreground color col on line off
 func (v view) label(off int, text string, col termbox.Attribute) {
 	v.buf.DrawLabel(
-		tulib.Rect{Y: off, Width: v.buf.Width, Height: 1},
+		tulib.Rect{Y: off, Width: v.buf.Width - 1, Height: 1},
 		&tulib.LabelParams{Fg: col, Bg: termbox.ColorDefault},
 		[]byte(text))
 }
@@ -46,7 +46,7 @@ func (v view) label(off int, text string, col termbox.Attribute) {
 // label draws text with foreground color col on line off
 func (v view) labelbg(off int, text string, bg, fg termbox.Attribute) {
 	v.buf.DrawLabel(
-		tulib.Rect{Y: off, Width: v.buf.Width, Height: 1},
+		tulib.Rect{Y: off, Width: v.buf.Width - 1, Height: 1},
 		&tulib.LabelParams{Fg: fg, Bg: bg},
 		[]byte(text))
 }
@@ -61,7 +61,7 @@ func (v view) clear() {
 func (v view) title(text string) {
 	v.buf.DrawLabel(
 		tulib.Rect{Width: v.buf.Width, Height: 1},
-		&tulib.LabelParams{Fg: termbox.ColorBlack, Bg: termbox.ColorWhite},
+		&tulib.LabelParams{Fg: termbox.ColorYellow, Bg: termbox.ColorBlue},
 		[]byte(text))
 }
 
@@ -86,6 +86,6 @@ func (v view) center(text string, bg, fg termbox.Attribute) {
 
 // clear empties entire middle line of view
 func (v view) clearCenter() {
-	v.buf.Fill(tulib.Rect{Y: v.buf.Height / 2, Width: v.buf.Width, Height: 1},
+	v.buf.Fill(tulib.Rect{Y: v.buf.Height / 2, Width: v.buf.Width - 1, Height: 1},
 		termbox.Cell{Bg: termbox.ColorDefault})
 }

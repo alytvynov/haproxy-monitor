@@ -19,6 +19,7 @@ import (
 
 // fieldCount is expected number of stat elements per record
 const fieldCount = 63
+const recLen = 110
 
 var (
 	// fieldPos are positions of stats that we want to print
@@ -60,11 +61,12 @@ func setupServers() ([]*server, error) {
 	drawch := make(chan view)
 	go draw(drawch)
 
-	w, h := termbox.Size()
+	_, h := termbox.Size()
 	bh := h / len(servers) // height of each server's view
+	bw := recLen           // width of each server's view
 	for i, s := range servers {
-		buf := tulib.NewBuffer(w, bh)
-		bufr := tulib.Rect{X: 0, Y: bh * i, Width: w, Height: bh}
+		buf := tulib.NewBuffer(bw, bh)
+		bufr := tulib.Rect{X: 0, Y: bh * i, Width: bw, Height: bh}
 		s.v = view{buf, bufr, drawch, make(chan struct{})}
 		go s.monitor()
 	}
@@ -98,7 +100,14 @@ func parseConf(path string) ([]*server, error) {
 func (s *server) monitor() {
 	s.selr = -1
 	s.v.title(fmt.Sprintf("%s (%s)", s.name, s.addr))
-	s.v.buf.Fill(tulib.Rect{Width: s.v.buf.Width, Height: 1, Y: s.v.buf.Height - 1}, termbox.Cell{Bg: termbox.ColorDefault, Fg: termbox.ColorBlue, Ch: '-'})
+
+	// draw a border on bottom and right sides
+	s.v.buf.Fill(
+		tulib.Rect{Width: s.v.buf.Width, Height: 1, Y: s.v.buf.Height - 1},
+		termbox.Cell{Bg: termbox.ColorDefault, Fg: termbox.ColorBlue, Ch: '-'})
+	s.v.buf.Fill(
+		tulib.Rect{Width: 1, Height: s.v.buf.Height, X: s.v.buf.Width - 1},
+		termbox.Cell{Bg: termbox.ColorDefault, Fg: termbox.ColorBlue, Ch: '|'})
 
 	for {
 		s.connectAndDraw()
@@ -157,7 +166,7 @@ func (s *server) redraw() {
 	s.drawStatTitles()
 
 	s.recs = s.recs[:0]
-	offs := 1 // offset from the top of buffer
+	offs := 2 // offset from the top of buffer
 	r := csv.NewReader(bytes.NewReader(s.stat))
 	for {
 		rec, err := r.Read()
@@ -196,7 +205,7 @@ func (s *server) appendLine(offs int, rec []string) {
 		l += fmt.Sprintf("%*.*s | ", fieldLen[i], fieldLen[i], rec[j])
 	}
 	// since offs starts at 2
-	if s.selr == offs-2 {
+	if s.selr == offs-3 {
 		s.v.labelbg(offs, l, termbox.ColorWhite, termbox.ColorBlack) // selected line
 	} else {
 		s.v.label(offs, l, termbox.ColorWhite) //regular line
@@ -208,7 +217,7 @@ func (s *server) drawStatTitles() {
 	for i, n := range fieldNames {
 		l += fmt.Sprintf("%*.*s | ", fieldLen[i], fieldLen[i], n)
 	}
-	s.v.label(1, l, termbox.ColorCyan)
+	s.v.label(2, l, termbox.ColorCyan)
 }
 
 // move cursor by diff. Positive diff goes lower on the list, negative - higher.
