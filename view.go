@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log"
+
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
 )
@@ -12,7 +14,9 @@ func draw(in chan view) {
 	for v := range in {
 		win := tulib.TermboxBuffer()
 		win.Blit(v.rect, 0, 0, &v.buf)
-		termbox.Flush()
+		if err := termbox.Flush(); err != nil {
+			log.Println(err)
+		}
 		v.done <- struct{}{}
 	}
 }
