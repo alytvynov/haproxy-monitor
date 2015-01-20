@@ -9,6 +9,8 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/user"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -51,12 +53,24 @@ type server struct {
 	recs [][]string
 }
 
-func setupServers() ([]*server, error) {
-	servers, err := parseConf("servers.conf")
+func loadServers() ([]*server, error) {
+	configPaths := []string{"haproxy-monitor.conf"}
+	if u, err := user.Current(); err == nil {
+		configPaths = append(configPaths, filepath.Join(u.HomeDir, ".haproxy-monitor.conf"))
+	}
+	path, err := firstExistingFile(configPaths...)
+	if err != nil {
+		return nil, err
+	}
+	servers, err := parseConf(path)
 	if err != nil {
 		return nil, err
 	}
 
+	return servers, nil
+}
+
+func initServers(servers []*server) {
 	// drawch is used by views to request redrawing them
 	drawch := make(chan view)
 	go draw(drawch)
@@ -70,8 +84,6 @@ func setupServers() ([]*server, error) {
 		s.v = view{buf, bufr, drawch, make(chan struct{})}
 		go s.monitor()
 	}
-
-	return servers, nil
 }
 
 // parseConf parses named file and extracts info about servers
@@ -94,6 +106,16 @@ func parseConf(path string) ([]*server, error) {
 		servers = append(servers, &server{name: l[0], addr: l[1]})
 	}
 	return servers, s.Err()
+}
+
+func firstExistingFile(files ...string) (string, error) {
+	for _, f := range files {
+		_, err := os.Stat(f)
+		if err == nil {
+			return f, nil
+		}
+	}
+	return "", fmt.Errorf("couldn't find any of %v", files)
 }
 
 // monitor sets up title and manages reconnection

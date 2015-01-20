@@ -9,6 +9,11 @@ import (
 )
 
 func main() {
+	servers, err := loadServers()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// set log output to a file so we don't screw up the interface
 	logf, err := os.Create("monitor.log")
 	if err != nil {
@@ -21,11 +26,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	servers, err := setupServers()
-	if err != nil {
-		termbox.Close()
-		log.Fatal(err)
-	}
+	initServers(servers)
 
 	pollEvents(servers)
 }
