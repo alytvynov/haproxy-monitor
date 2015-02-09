@@ -21,17 +21,17 @@ import (
 
 // fieldCount is expected number of stat elements per record
 const fieldCount = 63
-const recLen = 110
+const recLen = 131
 
 var (
 	// fieldPos are positions of stats that we want to print
-	fieldPos = []int{0, 1, 4, 8, 9, 17}
+	fieldPos = []int{0, 1, 4, 8, 9, 17, 22, 24}
 	// fieldLen contains widths of columns drawn for respective fields.
 	// len(fieldPos) == len(fieldLen)
-	fieldLen = []int{23, 35, 6, 10, 10, 7}
+	fieldLen = []int{23, 35, 6, 10, 10, 7, 7, 10}
 	// fieldNames are column names to be drawn
 	// len(fieldPos) == len(fieldNames)
-	fieldNames = []string{"group", "name", "scur", "bin", "bout", "status"}
+	fieldNames = []string{"group", "name", "scur", "bin", "bout", "status", "chkdown", "downtime"}
 )
 
 // server is a top-level struct that controls it's own section of the
