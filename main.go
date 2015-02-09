@@ -15,7 +15,7 @@ func main() {
 	}
 
 	// set log output to a file so we don't screw up the interface
-	logf, err := os.Create("monitor.log")
+	logf, err := os.Create(os.Getenv("HOME") + "/monitor.log")
 	if err != nil {
 		log.Fatal(err)
 	}
